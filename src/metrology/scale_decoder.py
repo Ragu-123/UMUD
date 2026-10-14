@@ -45,39 +45,71 @@ def analyze_margin_ticks(strip_gray, min_distance=20):
 
 class ScaleDecoder:
     """
-    Extracts spatial scale (pixels per millimeter) from ultrasound displays.
-    Scans both right and left margins for graticules, falling back to hardware presets.
+    Extracts spatial scale (pixels per millimeter) and active acoustic bounds
+    from ultrasound displays by parsing vertical graticule ticks per scanner model.
+    Reverse-engineered from hardware displays by Grandmaster AmbrosM.
     """
-    def __init__(self, fallback_px_per_mm=9.80):
+    def __init__(self, fallback_px_per_mm=10.0):
         self.fallback = fallback_px_per_mm
 
-    def decode(self, img_np):
-        if len(img_np.shape) == 3:
-            gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+    def decode(self, img_np, filename=""):
+        a = img_np
+        height, width = a.shape[:2]
+        filetype = filename.split('.')[-1].lower() if '.' in filename else 'tif'
+
+        if filetype == 'png':
+            first_tick = np.argmax(a[:, 6].mean(axis=-1) > 50)
+            second_minor_tick = 150 + np.argmax(a[150:, 6].mean(axis=-1) > 50)
+            second_major_tick = 150 + np.argmax(a[150:, 9].mean(axis=-1) > 50)
+            last_tick = len(a) - 1 - np.argmax(a[:, 6].mean(axis=-1)[::-1] > 50)
+            if (second_major_tick - first_tick) < 3 * (second_minor_tick - first_tick):
+                px_per_cm = second_major_tick - first_tick
+            else:
+                px_per_cm = second_minor_tick - first_tick
+            hw = a.shape[1] // 2
+            w2 = np.argmin(a[:, hw:].sum(axis=(0, 2)))
+            l, t, r, b = hw - w2, first_tick, hw + w2, last_tick
+        elif a.shape[:2] == (800, 1200):
+            if len(a.shape) == 3 and (a[87, 1147:1157] == 175).all():
+                first_tick = np.argmax(a[:, 1150].mean(axis=-1) > 50)
+                second_major_tick = first_tick + 20 + np.argmax(a[first_tick + 20:, 1150].mean(axis=-1) > 50)
+                last_tick = len(a) - 1 - np.argmax(a[:, 1150].mean(axis=-1)[::-1] > 50)
+                n_ticks = round((last_tick - first_tick) / (second_major_tick - first_tick))
+                if n_ticks <= 14:
+                    px_per_cm = (last_tick - first_tick) / n_ticks * 2
+                    offsets = {7: (142, 1058), 8: (163, 1037), 9: (211, 989), 10: (249, 951),
+                               11: (282, 918), 12: (308, 892), 13: (331, 869), 14: (349, 851)}
+                    l, r = offsets.get(n_ticks, (142, 1058))
+                    t, b = 91, last_tick
+                elif n_ticks == 15:
+                    px_per_cm = (last_tick - first_tick) / 3
+                    l, t, r, b = 142, 91, 1058, last_tick
+                else:
+                    px_per_cm = 148.0
+                    l, t, r, b = 142, 91, 1058, 700
+            elif len(a.shape) == 3 and (a[42, 67:74, 0] > 115).all():
+                px_per_cm = (783 - 42) / 5
+                l, t, r, b = 171, 42, 1029, 798
+            else:
+                px_per_cm = 148.0
+                l, t, r, b = 0, 0, width, height
+        elif a.shape[:2] == (644, 1088):
+            px_per_cm = 630.5 / 5
+            l, t, r, b = 140, 0, 947, 643
+        elif a.shape[0] in [512, 513]:
+            px_per_cm = (442 - 53) / 5
+            l, t, r, b = 0, 0, width, height - 10
+        elif a.shape[0] == 853:
+            if len(a.shape) == 2 and a[-5, 100] == 170 and a[-5, 934] == 170:
+                px_per_cm = (934 - 100) / 5
+            elif len(a.shape) == 2 and a[-5, 44] == 170 and a[-5, 879] == 170:
+                px_per_cm = (879 - 44) / 5
+            else:
+                px_per_cm = 167.0
+            l, t, r, b = 0, 0, width, height
         else:
-            gray = img_np
+            px_per_cm = 100.0
+            l, t, r, b = 0, 0, width, height
 
-        h, w = gray.shape
-        shape_key = (w, h)
-
-        # 1. Look up known hardware presets
-        preset = KNOWN_HARDWARE_PRESETS.get(shape_key, None)
-
-        # 2. Adaptive margin search
-        detected_spacing = None
-        if w > 100:
-            # Check right margin
-            strip_r = gray[:, max(0, w-60):w-10]
-            detected_spacing = analyze_margin_ticks(strip_r)
-
-            # Check left margin if right fails
-            if detected_spacing is None:
-                strip_l = gray[:, 15:min(w, 65)]
-                detected_spacing = analyze_margin_ticks(strip_l)
-
-        if detected_spacing is not None:
-            px_per_mm = detected_spacing / 10.0  # Major tick = 10 mm (1 cm)
-            if 5.0 <= px_per_mm <= 25.0:
-                return float(px_per_mm)
-
-        return float(preset if preset is not None else self.fallback)
+        px_per_mm = px_per_cm / 10.0
+        return px_per_mm, (l, t, r, b)
