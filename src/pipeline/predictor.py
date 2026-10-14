@@ -42,6 +42,19 @@ class TestPredictor:
             logger.warning(f"No fold checkpoints found in {self.cfg.output_dir}. Will use calibrated medical baseline.")
             return []
 
+        import types
+        class DummyConfig:
+            def __init__(self, *args, **kwargs): self.__dict__.update(kwargs)
+            def __setstate__(self, state): self.__dict__.update(state)
+
+        if 'configs' not in sys.modules:
+            configs_mod = types.ModuleType('configs')
+            default_cfg_mod = types.ModuleType('configs.default_config')
+            default_cfg_mod.Config = DummyConfig
+            configs_mod.default_config = default_cfg_mod
+            sys.modules['configs'] = configs_mod
+            sys.modules['configs.default_config'] = default_cfg_mod
+
         for ckpt_p in ckpt_files:
             logger.info(f"Loading checkpoint: {ckpt_p}")
             ck = torch.load(ckpt_p, map_location=self.device, weights_only=False)
