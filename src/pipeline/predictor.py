@@ -51,7 +51,7 @@ class TestPredictor:
 
         for ckpt_p in ckpt_files:
             logger.info(f"Loading checkpoint: {ckpt_p}")
-            ck = torch.load(ckpt_p, map_location=self.device)
+            ck = torch.load(ckpt_p, map_location=self.device, weights_only=False)
             m = build_segmentation_model(backbone=self.cfg.backbone, pretrained=False)
             m.load_state_dict(ck["model_state"])
             m = m.to(self.device)
