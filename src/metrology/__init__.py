@@ -2,3 +2,4 @@ from .scale_decoder import ScaleDecoder
 from .structure_tensor import StructureTensorMetrology
 from .aponeurosis_geometry import AponeurosisGeometryExtractor
 from .biomechanics import BiomechanicalMetrologyEngine
+from .argon_metrology import BiomechanicalMetrology
