@@ -157,9 +157,9 @@ class TestPredictor:
             if mask_idx.any():
                 sub_df.loc[mask_idx, ["pa_deg", "fl_mm", "mt_mm"]] = [pa_val, fl_val, mt_val]
 
-        # Save submission with semicolon delimiter
+        # Save submission with standard comma delimiter required by Kaggle automated evaluator
         os.makedirs(os.path.dirname(self.cfg.submission_path), exist_ok=True)
-        sub_df.to_csv(self.cfg.submission_path, sep=';', index=False)
+        sub_df.to_csv(self.cfg.submission_path, index=False)
         logger.info(f"Submission written successfully to {self.cfg.submission_path} (Shape: {sub_df.shape})")
         logger.info(f"Summary Stats:\n{sub_df[['pa_deg', 'fl_mm', 'mt_mm']].describe().round(3)}")
 
