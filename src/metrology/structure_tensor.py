@@ -54,8 +54,15 @@ class StructureTensorMetrology:
         if np.sum(valid) > 50:
             weights = coherency[valid]
             angles = acute_deg[valid]
-            dominant_angle = float(np.sum(angles * weights) / (np.sum(weights) + 1e-8))
-            mean_coherency = float(np.mean(coherency[valid]))
+            # Coherency-weighted 68th percentile to isolate true fascicle orientation above horizontal noise floor
+            idx = np.argsort(angles)
+            sorted_angles = angles[idx]
+            sorted_weights = weights[idx]
+            cum_weights = np.cumsum(sorted_weights)
+            cutoff = 0.68 * cum_weights[-1]
+            q_idx = np.searchsorted(cum_weights, cutoff)
+            dominant_angle = float(sorted_angles[min(q_idx, len(sorted_angles) - 1)])
+            mean_coherency = float(np.mean(weights))
         else:
             dominant_angle = 15.0  # Normal physiological resting average
             mean_coherency = 0.0

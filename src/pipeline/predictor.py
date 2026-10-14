@@ -44,6 +44,12 @@ class TestPredictor:
         models = []
         ckpt_files = sorted(glob.glob(os.path.join(self.cfg.output_dir, "model_fold_*.pt")))
         if not ckpt_files:
+            # Fallback search across kaggle input directories
+            candidate_files = sorted(glob.glob("/kaggle/input/**/model_fold_*.pt", recursive=True))
+            if candidate_files:
+                ckpt_files = candidate_files
+
+        if not ckpt_files:
             logger.warning(f"No fold checkpoints found in {self.cfg.output_dir}. Inference will use initialized model.")
             m = build_segmentation_model(backbone=self.cfg.backbone, pretrained=False).to(self.device)
             m.eval()
@@ -151,10 +157,36 @@ class TestPredictor:
             if mask_idx.any():
                 sub_df.loc[mask_idx, ["pa_deg", "fl_mm", "mt_mm"]] = [pa_val, fl_val, mt_val]
 
-        # Save submission
+        # Save submission with semicolon delimiter
         os.makedirs(os.path.dirname(self.cfg.submission_path), exist_ok=True)
-        sub_df.to_csv(self.cfg.submission_path, index=False)
+        sub_df.to_csv(self.cfg.submission_path, sep=';', index=False)
         logger.info(f"Submission written successfully to {self.cfg.submission_path} (Shape: {sub_df.shape})")
         logger.info(f"Summary Stats:\n{sub_df[['pa_deg', 'fl_mm', 'mt_mm']].describe().round(3)}")
+
+        # Save diagnostic distribution plot
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            import matplotlib.pyplot as plt
+            plot_dir = os.path.dirname(self.cfg.submission_path)
+            plot_path = os.path.join(plot_dir, "test_distribution_analysis.png")
+            fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+            axes[0].hist(sub_df['pa_deg'], bins=25, color='#2563eb', edgecolor='black', alpha=0.8)
+            axes[0].set_title('Pennation Angle (pa_deg)\nNormal: 5.0° - 45.0°')
+            axes[0].grid(True, linestyle='--', alpha=0.5)
+
+            axes[1].hist(sub_df['fl_mm'], bins=25, color='#16a34a', edgecolor='black', alpha=0.8)
+            axes[1].set_title('Fascicle Length (fl_mm)\nNormal: 30.0 - 200.0 mm')
+            axes[1].grid(True, linestyle='--', alpha=0.5)
+
+            axes[2].hist(sub_df['mt_mm'], bins=25, color='#dc2626', edgecolor='black', alpha=0.8)
+            axes[2].set_title('Muscle Thickness (mt_mm)\nNormal: 10.0 - 50.0 mm')
+            axes[2].grid(True, linestyle='--', alpha=0.5)
+
+            plt.tight_layout()
+            plt.savefig(plot_path, dpi=150)
+            logger.info(f"Diagnostic plot saved to {plot_path}")
+        except Exception as e:
+            logger.warning(f"Could not generate distribution plot: {e}")
 
         return sub_df

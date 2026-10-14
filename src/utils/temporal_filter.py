@@ -15,15 +15,18 @@ def apply_selective_burst_smoothing(df, burst_size=5, max_pixel_diff=3.0):
     # We process in chunks of burst_size if present
     n = len(df_out)
     i = 0
-    while i < n:
-        # Check if i to i+burst_size forms a candidate burst
-        if i + burst_size <= n:
-            window = df_out.iloc[i:i+burst_size]
-            # Smooth window with rolling median
+    while i + burst_size <= n:
+        window = df.iloc[i:i+burst_size]
+        try:
+            nums = [int(str(x).split(".")[0].replace("IMG_", "")) for x in window["image_id"]]
+            is_consecutive = (nums == list(range(nums[0], nums[0] + burst_size)))
+        except Exception:
+            is_consecutive = False
+
+        if is_consecutive:
             for col in target_cols:
                 med_val = window[col].median()
-                # Light blend (30% toward median to preserve subtle kinematics)
-                smoothed = 0.70 * window[col].values + 0.30 * med_val
+                smoothed = 0.80 * window[col].values + 0.20 * med_val
                 df_out.iloc[i:i+burst_size, df_out.columns.get_loc(col)] = np.round(smoothed, 3)
             i += burst_size
         else:
