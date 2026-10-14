@@ -12,7 +12,7 @@ from src.pipeline.predictor import TestPredictor
 def main():
     parser = argparse.ArgumentParser(description="Run UMUD Inference on Test Ultrasound Cohort")
     parser.add_argument("--data_dir", type=str, default="/kaggle/input/competitions/umud-challenge-muscle-architecture-in-ultrasound-data")
-    parser.add_argument("--checkpoints_dir", type=str, default="/kaggle/working/checkpoints")
+    parser.add_argument("--checkpoints_dir", type=str, default="/kaggle/input/datasets/ragunathravi/umdmodel/checkpoints")
     parser.add_argument("--submission_path", type=str, default="/kaggle/working/submission.csv")
     parser.add_argument("--backbone", type=str, default="resnet34")
     args = parser.parse_args()
